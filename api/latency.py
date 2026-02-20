@@ -1,4 +1,5 @@
 import json
+import os
 from http.server import BaseHTTPRequestHandler
 import statistics
 
@@ -12,39 +13,54 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        content_length = int(self.headers.get('Content-Length'))
-        body = self.rfile.read(content_length)
-        data = json.loads(body)
+        try:
+            content_length = int(self.headers.get('Content-Length'))
+            body = self.rfile.read(content_length)
+            data = json.loads(body)
 
-        regions = data["regions"]
-        threshold = data["threshold_ms"]
+            regions = data.get("regions", [])
+            threshold = data.get("threshold_ms", 180)
 
-        with open("telemetry.json") as f:
-            telemetry = json.load(f)
+            # Correct file path for Vercel
+            base_path = os.path.dirname(__file__)
+            file_path = os.path.join(base_path, "../telemetry.json")
 
-        result = {}
+            with open(file_path) as f:
+                telemetry = json.load(f)
 
-        for region in regions:
-            region_data = [r for r in telemetry if r["region"] == region]
+            result = {}
 
-            latencies = [r["latency_ms"] for r in region_data]
-            uptimes = [r["uptime"] for r in region_data]
+            for region in regions:
+                region_data = [r for r in telemetry if r["region"] == region]
 
-            avg_latency = statistics.mean(latencies)
-            p95_latency = sorted(latencies)[int(len(latencies) * 0.95) - 1]
-            avg_uptime = statistics.mean(uptimes)
-            breaches = len([l for l in latencies if l > threshold])
+                if not region_data:
+                    continue
 
-            result[region] = {
-                "avg_latency": avg_latency,
-                "p95_latency": p95_latency,
-                "avg_uptime": avg_uptime,
-                "breaches": breaches
-            }
+                latencies = [r["latency_ms"] for r in region_data]
+                uptimes = [r["uptime"] for r in region_data]
 
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
+                avg_latency = statistics.mean(latencies)
+                p95_latency = sorted(latencies)[int(len(latencies) * 0.95) - 1]
+                avg_uptime = statistics.mean(uptimes)
+                breaches = len([l for l in latencies if l > threshold])
 
-        self.wfile.write(json.dumps(result).encode())
+                result[region] = {
+                    "avg_latency": avg_latency,
+                    "p95_latency": p95_latency,
+                    "avg_uptime": avg_uptime,
+                    "breaches": breaches
+                }
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+
+            self.wfile.write(json.dumps(result).encode())
+
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
