@@ -37,7 +37,7 @@ class handler(BaseHTTPRequestHandler):
                     continue
 
                 latencies = [r["latency_ms"] for r in region_data]
-                uptimes = [r["uptime"] for r in region_data]
+                uptimes = [r["uptime_pct"] for r in region_data]
 
                 avg_latency = sum(latencies) / len(latencies)
                 p95_latency = sorted(latencies)[int(0.95 * len(latencies)) - 1]
