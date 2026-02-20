@@ -14,18 +14,18 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            content_length = int(self.headers.get('Content-Length'))
+            content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
             data = json.loads(body)
 
             regions = data.get("regions", [])
             threshold = data.get("threshold_ms", 180)
 
-            # Correct file path for Vercel
-            base_path = os.path.dirname(__file__)
-            file_path = os.path.join(base_path, "../telemetry.json")
+            # Absolute path fix for Vercel
+            root_dir = os.path.dirname(os.path.dirname(__file__))
+            file_path = os.path.join(root_dir, "telemetry.json")
 
-            with open(file_path) as f:
+            with open(file_path, "r") as f:
                 telemetry = json.load(f)
 
             result = {}
@@ -39,9 +39,9 @@ class handler(BaseHTTPRequestHandler):
                 latencies = [r["latency_ms"] for r in region_data]
                 uptimes = [r["uptime"] for r in region_data]
 
-                avg_latency = statistics.mean(latencies)
-                p95_latency = sorted(latencies)[int(len(latencies) * 0.95) - 1]
-                avg_uptime = statistics.mean(uptimes)
+                avg_latency = sum(latencies) / len(latencies)
+                p95_latency = sorted(latencies)[int(0.95 * len(latencies)) - 1]
+                avg_uptime = sum(uptimes) / len(uptimes)
                 breaches = len([l for l in latencies if l > threshold])
 
                 result[region] = {
@@ -60,7 +60,6 @@ class handler(BaseHTTPRequestHandler):
 
         except Exception as e:
             self.send_response(500)
-            self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            self.wfile.write(str(e).encode())
