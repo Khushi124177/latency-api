@@ -17,7 +17,7 @@ app.add_middleware(
 
 # telemetry.json load karna
 file_path = os.path.join(os.path.dirname(__file__), "telemetry.json")
-with open(file_path, "r") as f:
+with open("telemetry.json") as f:
     data = json.load(f)
 
 @app.post("/api/latency")
